@@ -7,6 +7,6 @@ def split(input_file_path, output_file_path):
                 break
             outfile.write(line)
 
-input_path = 'parsed_pmc.jsonl'
-output_path = '/small_data/parsed_pmc_small.jsonl'
+input_path = '../data/parsed_pmc_1.jsonl'
+output_path = '../small_data/parsed_pmc_1_small.jsonl'
 split(input_path, output_path)
