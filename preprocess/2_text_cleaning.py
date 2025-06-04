@@ -1,72 +1,73 @@
 import json
 import re
+from pathlib import Path
 
-def clean_text(text):
+# Regular expressions for cleaning text
+RX_NUMERIC_PAREN  = re.compile(r'\(\s*\d+(?:\s*(?:,|\u2013|\u2014|-)\s*\d+)*\s*\)')
+RX_NUMERIC_BRACK  = re.compile(r'\[\s*\d+(?:\s*(?:,|\u2013|\u2014|-)\s*\d+)*\s*\]')
+RX_AUTHOR_YEAR    = re.compile(r'\([A-Za-z][^)]*\d{4}[^)]*\)')
+RX_BRACKETED_OPT  = re.compile(r'\[[^\]]*\]\{[^}]*\}')
+RX_DIMENSION      = re.compile(r'-?\d+(?:\.\d+)?(?:in|cm|mm|pt)')
+RX_DOUBLE_BSLASH  = re.compile(r'\\\\+')
+RX_LATEX_ENV      = re.compile(r'\\(usepackage|begin|end)\s*{[^}]*}')
+RX_LATEX_CMD_ARG  = re.compile(r'\\[a-zA-Z]+\s*{[^}]*}')
+RX_LATEX_CMD      = re.compile(r'\\[a-zA-Z]+')
+RX_UNICODE_ESC    = re.compile(r'\\u[0-9a-fA-F]{4}')
+RX_FIG_TABLE      = re.compile(
+    r'\b(Fig\.|Figure|Table|Supplementary\s+Fig\.)\s*\d+[A-Za-z]*\b',
+    flags=re.IGNORECASE
+)
+RX_FIG_TABLE_PL   = re.compile(
+    r'\b(figs?\.|tables?)\s+[A-Za-z]*\d+(?:\s*(?:and|,)?\s*[A-Za-z]*\d+)*',
+    flags=re.IGNORECASE
+)
+RX_ENTRY_N        = re.compile(r'\(entry\s*\d+\)', flags=re.IGNORECASE)
+RX_WHITESPACE     = re.compile(r'\s+')
+
+def clean_text(text: str) -> str:
     """
-    This function takes a text string and removes various unwanted elements—such as numeric and author-year citations in parentheses,
-    IEEE-style bracketed citations, LaTeX commands and formatting (including bracketed options, inline commands,
-    and standalone commands), dimension specifications (like -1.0in or 2.5cm), stray backslashes, non-ASCII characters,
-    figure/table references, and other parenthetical entries—then returns the cleaned ASCII-only string.
+    Strips citations, LaTeX, dimensions, figure/table refs, stray unicode,
+    and **collapses all surplus whitespace**.
     """
-    text = re.sub(r'\(\s*\d+(?:\s*(?:,|\u2013|\u2014|-)\s*\d+)*\s*\)', '', text)
-    text = re.sub(r'\[\s*\d+(?:\s*(?:,|\u2013|\u2014|-)\s*\d+)*\s*\]', '', text)
-    text = re.sub(r'\([A-Za-z][^)]*\d{4}[^)]*\)', '', text)
-    text = re.sub(r'\[[^\]]*\]\{[^}]*\}', '', text)
-    text = re.sub(r'-?\d+(?:\.\d+)?(?:in|cm|mm|pt)', '', text)
-    text = re.sub(r'\\\\+', '', text)
-    text = re.sub(r'\\(usepackage|begin|end)\s*{[^}]*}', '', text)
-    text = re.sub(r'\\[a-zA-Z]+\s*{[^}]*}', '', text)
-    text = re.sub(r'\\[a-zA-Z]+', '', text)
-    text = re.sub(r'\\u[0-9a-fA-F]{4}', '', text)
-    text = text.replace('\n', ' ')
+    text = RX_NUMERIC_PAREN.sub('', text)
+    text = RX_NUMERIC_BRACK.sub('', text)
+    text = RX_AUTHOR_YEAR.sub('', text)
+    text = RX_BRACKETED_OPT.sub('', text)
+    text = RX_DIMENSION.sub('', text)
+    text = RX_DOUBLE_BSLASH.sub('', text)
+    text = RX_LATEX_ENV.sub('', text)
+    text = RX_LATEX_CMD_ARG.sub('', text)
+    text = RX_LATEX_CMD.sub('', text)
+    text = RX_UNICODE_ESC.sub('', text)
+    text = RX_FIG_TABLE.sub('', text)
+    text = RX_ENTRY_N.sub('', text)
+    text = RX_FIG_TABLE_PL.sub('', text)
     text = text.encode('ascii', errors='ignore').decode()
-    text = re.sub(
-        r'\b(Fig\.|Figure|Table|Supplementary\s+Fig\.)\s*\d+[A-Za-z]*\b',
-        '',
-        text,
-        flags=re.IGNORECASE
-    )
-    text = re.sub(r'\(entry\s*\d+\)', '', text, flags=re.IGNORECASE)
-    text = re.sub(
-        r'\b(figs?\.|tables?)\s+[A-Za-z]*\d+(?:\s*(and|,)?\s*[A-Za-z]*\d+)*',
-        '',
-        text,
-        flags=re.IGNORECASE
-    )
-
+    text = RX_WHITESPACE.sub(' ', text).strip()
     return text
 
-def clean_citations_in_jsonl(input_file, output_file):
-    print(f"Reading from: {input_file}")
-    try:
-        line_count = sum(1 for _ in open(input_file, 'r', encoding='utf-8'))
-        print(f"Total lines to process: {line_count}")
-    except Exception as e:
-        print(f"Error reading input file: {e}")
-        return
+def clean_citations_in_jsonl(input_file: str | Path, output_file: str | Path) -> None:
+    """
+    Reads a JSONL file line-by-line, cleans specified fields, and writes the
+    cleaned JSON objects to a new file.
+    """
     with open(input_file, 'r', encoding='utf-8') as infile, \
          open(output_file, 'w', encoding='utf-8') as outfile:
-        for i, line in enumerate(infile, start=1):
-            if i % 1000 == 0:
-                print(f"Processed {i} lines...", flush=True)
+
+        for line in infile:
             try:
                 data = json.loads(line)
-                print(f"Line {i}: JSON loaded, starting cleaning...", flush=True)
-                try:
-                    for field in ['title', 'abstract', 'introduction', 'results', 'discussion', 'conclusion']:
-                        if field in data and isinstance(data[field], str):
-                            field_text = data[field]
-                            text_length = len(field_text)
-                            print(f"Line {i}: cleaning field '{field}' (length {text_length})", flush=True)
-                            data[field] = clean_text(field_text)
-                            print(f"Line {i}: finished cleaning field '{field}'", flush=True)
-                except Exception as e:
-                    print(f"Error cleaning line {i}: {e}", flush=True)
-                print(f"Line {i}: writing cleaned JSON to output", flush=True)
-                outfile.write(json.dumps(data, ensure_ascii=False) + '\n')
-            except json.JSONDecodeError as e:
-                print(f"Skipping line {i} due to JSON error: {e}")
+            except json.JSONDecodeError:
+                continue
 
-input_path = '../small_data/parsed_pmc_1_small.jsonl'
-output_path = '../small_data/preprocess.jsonl'
-clean_citations_in_jsonl(input_path, output_path)
+            for field in ('title', 'abstract', 'introduction',
+                          'results', 'discussion', 'conclusion'):
+                if field in data and isinstance(data[field], str):
+                    data[field] = clean_text(data[field])
+
+            outfile.write(json.dumps(data, ensure_ascii=False) + '\n')
+
+if __name__ == "__main__":
+    input_path  = '../small_data/test_case.jsonl'
+    output_path = '../small_data/test_case_output1.jsonl'
+    clean_citations_in_jsonl(input_path, output_path)
