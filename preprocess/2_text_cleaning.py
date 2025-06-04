@@ -2,8 +2,10 @@ import json
 import re
 from pathlib import Path
 
-# Regular expressions for cleaning text
+# Regular expressions
+RX_PAREN_CONTENT = re.compile(r'\([^)]*\)')
 RX_NUMERIC_PAREN  = re.compile(r'\(\s*\d+(?:\s*(?:,|\u2013|\u2014|-)\s*\d+)*\s*\)')
+RX_BRACK_CONTENT  = re.compile(r'\[[^\]]*\]')
 RX_NUMERIC_BRACK  = re.compile(r'\[\s*\d+(?:\s*(?:,|\u2013|\u2014|-)\s*\d+)*\s*\]')
 RX_AUTHOR_YEAR    = re.compile(r'\([A-Za-z][^)]*\d{4}[^)]*\)')
 RX_BRACKETED_OPT  = re.compile(r'\[[^\]]*\]\{[^}]*\}')
@@ -23,13 +25,22 @@ RX_FIG_TABLE_PL   = re.compile(
 )
 RX_ENTRY_N        = re.compile(r'\(entry\s*\d+\)', flags=re.IGNORECASE)
 RX_WHITESPACE     = re.compile(r'\s+')
+RX_MATH_DOLLAR   = re.compile(r'\${1,2}[^$]*\${1,2}')
+RX_NUMERIC_GENERIC = re.compile(
+    r'[<>]=?\s*\d*\.?\d+(?:[eE][+-]?\d+)?'
+    r'|\d*\.\d+(?:[eE][+-]?\d+)?'
+    r'|\{[^}]*\}'
+)
+RX_SPACE_PUNCT = re.compile(r'\s+([.,;:!?])')
 
 def clean_text(text: str) -> str:
     """
     Strips citations, LaTeX, dimensions, figure/table refs, stray unicode,
-    and **collapses all surplus whitespace**.
+    and so on.
     """
+    text = RX_PAREN_CONTENT.sub('', text)
     text = RX_NUMERIC_PAREN.sub('', text)
+    text = RX_BRACK_CONTENT.sub('', text)
     text = RX_NUMERIC_BRACK.sub('', text)
     text = RX_AUTHOR_YEAR.sub('', text)
     text = RX_BRACKETED_OPT.sub('', text)
@@ -43,14 +54,13 @@ def clean_text(text: str) -> str:
     text = RX_ENTRY_N.sub('', text)
     text = RX_FIG_TABLE_PL.sub('', text)
     text = text.encode('ascii', errors='ignore').decode()
+    text = RX_NUMERIC_GENERIC.sub('', text)
+    text = RX_MATH_DOLLAR.sub('', text)
     text = RX_WHITESPACE.sub(' ', text).strip()
+    text = RX_SPACE_PUNCT.sub(r'\1', text)
     return text
 
-def clean_citations_in_jsonl(input_file: str | Path, output_file: str | Path) -> None:
-    """
-    Reads a JSONL file line-by-line, cleans specified fields, and writes the
-    cleaned JSON objects to a new file.
-    """
+def clean_regex(input_file: str | Path, output_file: str | Path) -> None:
     with open(input_file, 'r', encoding='utf-8') as infile, \
          open(output_file, 'w', encoding='utf-8') as outfile:
 
@@ -68,6 +78,6 @@ def clean_citations_in_jsonl(input_file: str | Path, output_file: str | Path) ->
             outfile.write(json.dumps(data, ensure_ascii=False) + '\n')
 
 if __name__ == "__main__":
-    input_path  = '../small_data/test_case.jsonl'
-    output_path = '../small_data/test_case_output1.jsonl'
-    clean_citations_in_jsonl(input_path, output_path)
+    input_path  = '../small_data/test.jsonl'
+    output_path = '../small_data/test_output.jsonl'
+    clean_regex(input_path, output_path)
