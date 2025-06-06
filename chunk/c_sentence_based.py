@@ -20,13 +20,14 @@ tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 MAX_TOKENS = 480
 OVERLAP_SENTENCES = 2
 
-input_path = "chunk_test.jsonl"
-output_path = "chunked_output.jsonl"
+input_path = "parsed_pmc_2_100.jsonl"
+output_path = "parsed_pmc_2_chunked.jsonl"
 
 def count_tokens(text):
-    return len(tokenizer.encode(text, add_special_tokens=False))
+    return len(tokenizer.encode(text, add_special_tokens=True))
 
 with open(input_path, "r") as fin, open(output_path, "w") as fout:
+    last_chunk_text = None
     for doc_idx, line in enumerate(fin):
         item = json.loads(line)
         for field in item:
@@ -53,6 +54,15 @@ with open(input_path, "r") as fin, open(output_path, "w") as fout:
                     tokens += next_tokens
                     i += 1
                 chunk_text = " ".join(chunk_sentences)
+                tokenized = tokenizer.encode(chunk_text, add_special_tokens=True)
+                if len(tokenized) > 512:
+                    print(f"Warning: Chunk {chunk_id} in doc {doc_idx} has {len(tokenized)} tokens, truncating.")
+                    tokenized = tokenized[:512]
+                    chunk_text = tokenizer.decode(tokenized, skip_special_tokens=True)
+                if chunk_text == last_chunk_text:
+                    print(f"Skipping duplicate chunk {chunk_id} in doc {doc_idx}")
+                    break
+                last_chunk_text = chunk_text
                 out = {
                     "original_index": doc_idx,
                     "section": field,
@@ -61,3 +71,5 @@ with open(input_path, "r") as fin, open(output_path, "w") as fout:
                 }
                 fout.write(json.dumps(out) + "\n")
                 chunk_id += 1
+        print(f"Processed document {doc_idx + 1}")
+        print(f"Total chunks created: {chunk_id}")
