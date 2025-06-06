@@ -3,7 +3,7 @@ def split(input_file_path, output_file_path):
          open(output_file_path, 'w', encoding='utf-8') as outfile:
         
         for i, line in enumerate(infile):
-            if i >= 50000:
+            if i >= 10000:
                 break
             outfile.write(line)
 

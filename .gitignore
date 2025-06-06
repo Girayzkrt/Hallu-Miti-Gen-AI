@@ -3,3 +3,4 @@ pmc_extracted/
 data/
 small_data/
 parsed_pmc.jsonl
+pure_llm/
