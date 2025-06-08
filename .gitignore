@@ -1,6 +1,6 @@
-pmc_downloads/
-pmc_extracted/
+trash_pmc_downloads(DEL)/
+trash_pmc_extracted(DEL)/
 data/
-small_data/
-parsed_pmc.jsonl
+trashh/
 pure_llm/
+chunk/
