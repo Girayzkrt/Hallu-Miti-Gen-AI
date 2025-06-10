@@ -1,1 +1,1 @@
-## Mitigating Hallucinations in Generative-AI - Effectiveness of Retrievel Augmented Generation and Fine-Tuning ##
+## Mitigating Hallucinations in Generative-AI : The Effectiveness of Retrieval-Augmented Generation and Fine-Tuning ##
