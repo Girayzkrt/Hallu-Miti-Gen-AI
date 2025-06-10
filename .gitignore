@@ -2,5 +2,4 @@ trash_pmc_downloads(DEL)/
 trash_pmc_extracted(DEL)/
 data/
 trashh/
-pure_llm/
-chunk/
+playground/
