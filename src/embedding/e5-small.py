@@ -8,13 +8,15 @@ import torch
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qdrant_models
 
-DATA_PATH = "../../data/parsed_pmc_2.jsonl"
+DATA_PATH = "../../data/json_files/parsed_pmc_2.jsonl"
 MODEL_NAME = "intfloat/e5-small-v2"
 QDRANT_HOST = "localhost"
 QDRANT_PORT = 6333
-COLLECTION_NAME = "pmc_e5_full_docs"
+COLLECTION_NAME = "pmc_chunked_title_abstract"
 EMBED_DIM = 384
 BATCH_SIZE = 16
+CHUNK_SIZE = 480
+CHUNK_OVERLAP = 50
 PROGRESS_FILE = "../../data/embedding_progress.log"
 
 
@@ -49,7 +51,6 @@ def qdrant_setup():
 def get_last_processed_id():
     """
     Reads the ID of the last successfully embedded article from the progress file.
-    Returns -1 if the file doesn't exist or is empty, starting from the beginning.
     """
     if not os.path.exists(PROGRESS_FILE):
         return -1
@@ -62,7 +63,9 @@ def get_last_processed_id():
         return -1
 
 def log_progress(last_id):
-    """Saves the ID of the last successfully processed article to the progress file."""
+    """
+    Saves the ID of the last successfully processed article to the progress file.
+    """
     try:
         with open(PROGRESS_FILE, "w") as f:
             f.write(str(last_id))
@@ -71,35 +74,37 @@ def log_progress(last_id):
         sys.exit(1)
 
 def read_data(path, start_from_id=-1):
-    """
-    Data needs to be read line by line.
-    It yields the line number (ID) and the parsed JSON object.
-    It skips lines that have already been processed based on `start_from_id`.
-    """
     with open(path, "r", encoding="utf-8") as f:
         for i, line in enumerate(f):
             if i <= start_from_id:
                 continue
             yield i, json.loads(line)
 
-def generate_embeddings_in_batches(texts, model, tokenizer, device):
+def embed_text(text, model, tokenizer, device, chunk_size=CHUNK_SIZE, overlap=CHUNK_OVERLAP):
     """
-    Generates embeddings for a list of texts in a single batch.
-    This is much more efficient than embedding one by one.
+    Embeds a single text by chunking if it exceeds `chunk_size` tokens, using overlap.
     """
-    inputs = [f"passage: {text}" for text in texts]
-    encoded = tokenizer(
-        inputs,
-        return_tensors="pt",
-        padding=True,
-        truncation=True,
-        max_length=512
-    ).to(device)
+    tokens = tokenizer.encode(text, add_special_tokens=True)
+    if len(tokens) <= chunk_size:
+        input_ids = torch.tensor([tokens], device=device)
+        attention_mask = torch.ones_like(input_ids)
+        with torch.no_grad():
+            out = model(input_ids=input_ids, attention_mask=attention_mask)
+        return out.last_hidden_state.mean(dim=1).cpu().numpy()[0]
+    
 
-    with torch.no_grad():
-        out = model(**encoded)
-    embeddings = out.last_hidden_state.mean(dim=1)
-    return embeddings.cpu().numpy()
+    print(f"Text is {len(tokens)} tokens long - {chunk_size} – splitting")
+    embeddings = []
+    step = chunk_size - overlap
+    for start in range(0, len(tokens), step):
+        chunk = tokens[start : start + chunk_size]
+        input_ids = torch.tensor([chunk], device=device)
+        attention_mask = torch.ones_like(input_ids)
+        with torch.no_grad():
+            out = model(input_ids=input_ids, attention_mask=attention_mask)
+        emb = out.last_hidden_state.mean(dim=1).cpu().numpy()[0]
+        embeddings.append(emb)
+    return np.mean(embeddings, axis=0)
 
 def main():
     """Main function to run the embedding and upsert process."""
@@ -111,7 +116,7 @@ def main():
     if last_processed_id > -1:
         print(f"Resuming embedding process from after article ID: {last_processed_id}")
     else:
-        print("Starting new embedding process from the beginning.")
+        print("Sil bastann baslamak gerek bazen")
     print("-" * 50)
 
     try:
@@ -122,62 +127,55 @@ def main():
         print(f"Error: The file was not found at {DATA_PATH}")
         return
 
-    article_batch_for_model = []
-    id_batch_for_qdrant = []
-    payload_batch_for_qdrant = []
+    id_batch = []
+    payload_batch = []
+    embeddings_batch = []
 
     article_generator = read_data(DATA_PATH, start_from_id=last_processed_id)
-    
     with tqdm(article_generator, total=total_lines, initial=last_processed_id + 1, desc="Embedding Articles") as pbar:
         for idx, article in pbar:
             title = article.get('title', '').strip()
             abstract = article.get('abstract', '').strip()
             text_to_embed = f"{title}. {abstract}"
 
-            # Add data to the current batch
-            article_batch_for_model.append(text_to_embed)
-            id_batch_for_qdrant.append(idx)
-            payload_batch_for_qdrant.append(article)
+            vec = embed_text(text_to_embed, model, tokenizer, device)
 
-            # When the batch is full, process it
-            if len(article_batch_for_model) >= BATCH_SIZE:
-                embeddings = generate_embeddings_in_batches(article_batch_for_model, model, tokenizer, device)
+            id_batch.append(idx)
+            payload_batch.append(article)
+            embeddings_batch.append(vec)
 
+            if len(embeddings_batch) >= BATCH_SIZE:
                 points = [
                     qdrant_models.PointStruct(
-                        id=point_id,
-                        vector=vector.tolist(),
-                        payload=payload
-                    ) for point_id, vector, payload in zip(id_batch_for_qdrant, embeddings, payload_batch_for_qdrant)
+                        id=pid,
+                        vector=vec.tolist(),
+                        payload=pl
+                    ) for pid, vec, pl in zip(id_batch, embeddings_batch, payload_batch)
                 ]
                 client.upsert(
                     collection_name=COLLECTION_NAME,
                     points=points,
                     wait=True
                 )
-                log_progress(id_batch_for_qdrant[-1])
-                article_batch_for_model = []
-                id_batch_for_qdrant = []
-                payload_batch_for_qdrant = []
+                log_progress(id_batch[-1])
+                id_batch, payload_batch, embeddings_batch = [], [], []
 
-    if article_batch_for_model:
-        print(f"Processing the final batch of {len(article_batch_for_model)} articles...")
-        embeddings = generate_embeddings_in_batches(article_batch_for_model, model, tokenizer, device)
-
+ 
+    if embeddings_batch:
+        print(f"Processing the final batch of {len(embeddings_batch)} docs")
         points = [
             qdrant_models.PointStruct(
-                id=point_id,
-                vector=vector.tolist(),
-                payload=payload
-            ) for point_id, vector, payload in zip(id_batch_for_qdrant, embeddings, payload_batch_for_qdrant)
+                id=pid,
+                vector=vec.tolist(),
+                payload=pl
+            ) for pid, vec, pl in zip(id_batch, embeddings_batch, payload_batch)
         ]
-
         client.upsert(collection_name=COLLECTION_NAME, points=points, wait=True)
-        log_progress(id_batch_for_qdrant[-1])
+        log_progress(id_batch[-1])
         print("Final batch processed.")
 
     print("-" * 50)
-    print("Embedding process completed successfully.")
+    print("Done")
     print("-" * 50)
 
 
