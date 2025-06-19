@@ -5,13 +5,6 @@ import sys
 def count_tokens_in_jsonl(file_path, model="gpt-4"):
     """
     Counts the number of tokens in each line of a JSONL file using the specified model's tokenizer.
-
-    Args:
-        file_path (str): Path to the JSONL file.
-        model (str): Model name for tokenization (default: "gpt-4").
-
-    Returns:
-        list of tuples: Each tuple contains (line_number, token_count, json_data).
     """
     tokenizer = GPT2TokenizerFast.from_pretrained(model)
 
@@ -22,7 +15,6 @@ def count_tokens_in_jsonl(file_path, model="gpt-4"):
             if not line:
                 continue
 
-            # Count tokens in the raw JSON line
             tokens = tokenizer.encode(line)
             token_count = len(tokens)
 
@@ -37,7 +29,6 @@ def count_tokens_in_jsonl(file_path, model="gpt-4"):
 
 
 if __name__ == "__main__":
-    #argv1 is the file path, argv2 is the model name
     file_path = sys.argv[1]
     model = sys.argv[2] if len(sys.argv) > 2 else "gpt2"
 
