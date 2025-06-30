@@ -25,8 +25,7 @@ RX_SPACE_PUNCT = re.compile(r'\s+([.,;:!?])')
 
 def clean_text(text: str) -> str:
     """
-    Strips citations, LaTeX, dimensions, figure/table refs, stray unicode,
-    and so on.
+    Strips citations, LaTeX, dimensions, figure/table refs
     """
     text = RX_PAREN_CITATION.sub('', text)
     text = RX_BRACK_CITATION.sub('', text)
