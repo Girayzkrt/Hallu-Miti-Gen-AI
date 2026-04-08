@@ -4,7 +4,7 @@
 > BSc Thesis by Giray Kurt
 
 [![Research Paper](https://img.shields.io/badge/Research_Paper-PDF-red)](./BSc_Thesis__Giray_Kurt.pdf)
-[![Fine-Tuned Model](https://img.shields.com/badge/HuggingFace-Mist--FT--2106--4bit-yellow)](https://huggingface.co/girayzkrt/Mist-FT-2106-4bit)
+[![Fine-Tuned Model](https://img.shields.io/badge/HuggingFace-Mist--FT--2106--4bit-yellow)](https://huggingface.co/girayzkrt/Mist-FT-2106-4bit)
 
 ---
 
