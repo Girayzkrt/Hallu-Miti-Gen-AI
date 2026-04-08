@@ -1,0 +1,27 @@
+# Deep learning
+torch
+transformers
+sentence-transformers
+
+# Vector database
+qdrant-client
+
+# Evaluation
+evaluate
+bert-score
+rouge-score
+
+# Data & ML utilities
+numpy
+pandas
+scikit-learn
+nltk
+tqdm
+
+# Visualization
+matplotlib
+seaborn
+
+# Web / data collection
+requests
+beautifulsoup4
