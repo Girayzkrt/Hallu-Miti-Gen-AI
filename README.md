@@ -12,7 +12,7 @@
 
 ## Overview
 
-This research investigates hallucination mitigation in Large Language Models (LLMs) applied to the biomedical domain. The project benchmarks four distinct generation strategies on a medical question-answering task using the PubMedQA dataset, comparing how **Retrieval-Augmented Generation (RAG)** and **fine-tuning** — independently and combined — affect factual accuracy relative to a vanilla LLM baseline.
+This research investigates hallucination mitigation in Large Language Models (LLMs) applied to the biomedical domain. The project benchmarks four distinct generation strategies on a medical question-answering task using the PubMedQA dataset, comparing how **Retrieval-Augmented Generation (RAG)** and **fine-tuning** independently and combined affect factual accuracy relative to a vanilla LLM baseline.
 
 The base model throughout is **Mistral-7B-Instruct**, deployed locally via [Ollama](https://ollama.com) for vanilla and RAG experiments, and as a 4-bit quantized fine-tuned checkpoint (`girayzkrt/Mist-FT-2106-4bit`) for fine-tuning experiments.
 
