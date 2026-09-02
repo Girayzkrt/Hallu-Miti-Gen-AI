@@ -254,4 +254,4 @@ The full thesis document is available in this repository:
 
 ## Author
 
-**Giray Kurt** — [@Girayzkrt](https://github.com/Girayzkrt)
+**Giray Kurt** - [@Girayzkrt](https://github.com/Girayzkrt)
